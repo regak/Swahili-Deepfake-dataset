@@ -1,0 +1,15 @@
+# Core dataset-selection logic (phonemes.py, selection.py, manifest.py) has
+# no third-party dependencies -- only the standard library.
+
+# Audio preprocessing (scripts/preprocess_audio.py)
+soundfile>=0.12
+scipy>=1.10
+numpy>=1.24
+
+# Deepfake generation (scripts/generate_deepfakes.py) -- heavy, install only
+# when actually synthesizing speech. Uncomment the backend(s) you use.
+# TTS>=0.22          # Coqui TTS: XTTS-v2, YourTTS
+# fish-speech         # Fish Speech (see https://github.com/fishaudio/fish-speech)
+
+# Testing
+pytest>=7.0
