@@ -58,9 +58,9 @@ you plan to use; see `requirements.txt` for details.
    `data/raw/`. If you're sourcing it from Mozilla Data Collective (MDC)
    rather than the classic Common Voice downloads page, run
    [`notebooks/download_mdc_common_voice_sw.ipynb`](notebooks/download_mdc_common_voice_sw.ipynb)
-   on Kaggle (with Internet enabled and an `MDC_API_KEY` Kaggle Secret set)
-   to fetch and extract it there, then copy the resulting `clips/` and
-   `validated.tsv` into `data/raw/`.
+   on Kaggle (with Internet enabled; paste the dataset's download URL when
+   prompted) to fetch and extract it there, then copy the resulting `clips/`
+   and `validated.tsv` into `data/raw/`.
 
 2. **Select a phoneme-balanced subset:**
 
