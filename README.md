@@ -32,6 +32,7 @@ scripts/                    CLI entry points
 
 tests/                      Unit tests for the core pipeline logic
 docs/                       Methodology and paper outline
+notebooks/                  Kaggle/Jupyter notebooks (e.g. corpus download)
 data/                       Not committed to git (see .gitignore); local working directories
   raw/         Downloaded corpus audio + metadata
   processed/   Standardized/filtered real audio
@@ -54,7 +55,12 @@ you plan to use; see `requirements.txt` for details.
 
 1. **Obtain a source corpus.** Download Common Voice Swahili (or another
    corpus with a `path`/`sentence`/speaker-ID metadata table) into
-   `data/raw/`.
+   `data/raw/`. If you're sourcing it from Mozilla Data Collective (MDC)
+   rather than the classic Common Voice downloads page, run
+   [`notebooks/download_mdc_common_voice_sw.ipynb`](notebooks/download_mdc_common_voice_sw.ipynb)
+   on Kaggle (with Internet enabled and an `MDC_API_KEY` Kaggle Secret set)
+   to fetch and extract it there, then copy the resulting `clips/` and
+   `validated.tsv` into `data/raw/`.
 
 2. **Select a phoneme-balanced subset:**
 
