@@ -49,6 +49,21 @@ def main() -> None:
     with open(args.fake_manifest_tsv, newline="", encoding="utf-8") as f:
         fake_rows = list(csv.DictReader(f, delimiter="\t"))
 
+    real_audio_dir = Path(args.real_audio_dir)
+    # preprocess_audio.py writes output by stem (e.g. clip1.mp3 -> clip1.wav),
+    # since standardization changes the format regardless of the original
+    # extension -- id may still carry that original extension, so strip it
+    # before appending audio_ext, matching build_manifest()'s own logic.
+    existing_real_rows = [r for r in real_rows if (real_audio_dir / f"{Path(r['id']).stem}{args.audio_ext}").is_file()]
+    missing_count = len(real_rows) - len(existing_real_rows)
+    if missing_count:
+        print(
+            f"Warning: {missing_count}/{len(real_rows)} selected utterance(s) have no audio file under "
+            f"{real_audio_dir} (e.g. filtered out by preprocess_audio.py's duration/duplicate checks) "
+            "-- excluding them from the manifest."
+        )
+    real_rows = existing_real_rows
+
     entries = build_manifest(
         real_rows,
         fake_rows,

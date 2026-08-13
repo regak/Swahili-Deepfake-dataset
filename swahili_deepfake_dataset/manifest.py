@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, Iterable, List
 
 
@@ -64,7 +65,12 @@ def build_manifest(
         real_rows: dicts with keys `id`, `speaker_id` (from select_subset.py output).
         fake_rows: dicts with keys `id`, `speaker_id`, `generator`, `audio_path`
             (from generate_deepfakes.py output).
-        real_audio_dir: directory containing real audio named `<id><audio_ext>`.
+        real_audio_dir: directory containing standardized real audio, named
+            `<stem of id><audio_ext>` (preprocess_audio.py always writes
+            output by stem, e.g. source id `clip1.mp3` -> `clip1.wav`, since
+            standardization changes the format regardless of the original
+            extension -- `id` itself may still carry that original
+            extension, so it's stripped here before appending `audio_ext`).
     """
     all_speakers = [row["speaker_id"] for row in real_rows]
     splits = assign_speaker_splits(all_speakers, train_ratio, val_ratio, seed)
@@ -75,7 +81,7 @@ def build_manifest(
         entries.append(
             ManifestEntry(
                 id=row["id"],
-                audio_path=f"{real_audio_dir.rstrip('/')}/{row['id']}{audio_ext}",
+                audio_path=f"{real_audio_dir.rstrip('/')}/{Path(row['id']).stem}{audio_ext}",
                 label="real",
                 source="corpus",
                 speaker_id=speaker,

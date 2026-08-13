@@ -85,6 +85,11 @@ def main() -> None:
     if not raw_files:
         raise SystemExit(f"No audio files found under {input_dir}")
 
+    # Filtered-out files are deleted, not just flagged, so output_dir only
+    # ever contains audio that actually passed quality filtering -- anything
+    # downstream that lists output_dir (or checks a file's existence there,
+    # like build_manifest.py) sees the correct, already-filtered set without
+    # needing to separately consult this script's manifest.
     rows = []
     standardized_paths = []
     for raw_path in raw_files:
@@ -98,6 +103,8 @@ def main() -> None:
             dur = 0.0
             kept = False
             reason = f"error:{exc}"
+        if not kept and out_path.exists():
+            out_path.unlink()
         rows.append({"id": raw_path.stem, "path": str(out_path), "duration": f"{dur:.3f}", "kept": kept, "reason": reason})
         if kept:
             standardized_paths.append(str(out_path))
@@ -108,6 +115,7 @@ def main() -> None:
         if row["path"] in duplicate_paths and row["kept"]:
             row["kept"] = False
             row["reason"] = "duplicate"
+            Path(row["path"]).unlink(missing_ok=True)
 
     with open(args.manifest, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=["id", "path", "duration", "kept", "reason"], delimiter="\t")

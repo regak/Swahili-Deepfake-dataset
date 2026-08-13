@@ -54,6 +54,17 @@ def test_build_manifest_labels_real_and_fake_correctly():
     assert fake_entry.source == "xtts_v2"
 
 
+def test_build_manifest_strips_original_extension_from_real_audio_path():
+    # select_subset.py's ids carry the source corpus's original extension
+    # (e.g. "clip1.mp3"), but preprocess_audio.py always writes standardized
+    # output by stem (e.g. "clip1.wav") since standardization changes the
+    # format regardless of the source extension. audio_path must match the
+    # file preprocess_audio.py actually wrote, not "clip1.mp3.wav".
+    real_rows = [{"id": "clip1.mp3", "speaker_id": "s1"}]
+    entries = build_manifest(real_rows, [], real_audio_dir="/real", audio_ext=".wav")
+    assert entries[0].audio_path == "/real/clip1.wav"
+
+
 def test_split_summary_counts():
     real_rows = [{"id": f"u{i}", "speaker_id": f"s{i}"} for i in range(10)]
     fake_rows = [

@@ -36,7 +36,7 @@ def main() -> None:
         description="Generate deepfake speech for a selected subset of real Swahili utterances."
     )
     parser.add_argument("subset_tsv", help="TSV produced by select_subset.py (id, speaker_id, text)")
-    parser.add_argument("real_audio_dir", help="Directory containing real reference audio, named <id><ext>")
+    parser.add_argument("real_audio_dir", help="Directory containing real reference audio, named <stem of id><ext>")
     parser.add_argument("output_dir", help="Directory to write generated deepfake audio into")
     parser.add_argument(
         "--generators", nargs="+", default=["xtts_v2"], choices=sorted(GENERATORS),
@@ -51,6 +51,23 @@ def main() -> None:
     if not rows:
         raise SystemExit(f"No rows found in {args.subset_tsv}")
 
+    real_audio_dir = Path(args.real_audio_dir)
+    # preprocess_audio.py writes output by stem (e.g. clip1.mp3 -> clip1.wav),
+    # since standardization changes the format regardless of the original
+    # extension -- id may still carry that original extension, so strip it
+    # before appending audio_ext.
+    existing_rows = [r for r in rows if (real_audio_dir / f"{Path(r['id']).stem}{args.audio_ext}").is_file()]
+    missing_count = len(rows) - len(existing_rows)
+    if missing_count:
+        print(
+            f"Warning: {missing_count}/{len(rows)} selected utterance(s) have no reference audio under "
+            f"{real_audio_dir} (e.g. filtered out by preprocess_audio.py's duration/duplicate checks) "
+            "-- skipping them rather than failing synthesis partway through."
+        )
+    rows = existing_rows
+    if not rows:
+        raise SystemExit(f"No reference audio found under {real_audio_dir} for any row in {args.subset_tsv}")
+
     output_dir = Path(args.output_dir)
     fake_rows = []
     for gen_name in args.generators:
@@ -59,8 +76,9 @@ def main() -> None:
         gen_dir.mkdir(parents=True, exist_ok=True)
         for row in rows:
             uid = row["id"]
-            ref_path = Path(args.real_audio_dir) / f"{uid}{args.audio_ext}"
-            out_path = gen_dir / f"{uid}{args.audio_ext}"
+            uid_stem = Path(uid).stem
+            ref_path = real_audio_dir / f"{uid_stem}{args.audio_ext}"
+            out_path = gen_dir / f"{uid_stem}{args.audio_ext}"
             request = SynthesisRequest(
                 utterance_id=uid,
                 text=row["text"],
