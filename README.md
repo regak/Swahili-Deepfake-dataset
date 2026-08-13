@@ -63,12 +63,15 @@ you plan to use; see `requirements.txt` for details.
    If you're sourcing it from Mozilla Data Collective (MDC) rather than the
    classic Common Voice downloads page,
    [`notebooks/download_mdc_common_voice_sw.ipynb`](notebooks/download_mdc_common_voice_sw.ipynb)
-   runs the download-through-selection flow on Kaggle: it downloads the
-   archive via the `datacollective` SDK, extracts only the transcript TSVs,
-   runs `select_subset.py` (step 2 below) there, then extracts only the
-   selected clips with `extract_selected_clips.py` — never the full corpus.
-   Copy its resulting `selected_subset.tsv` and `clips/` output into
-   `data/manifests/` and `data/raw/` respectively and skip to step 3.
+   runs the download-through-selection flow on Kaggle *without ever writing
+   the full archive to disk* — the Common Voice Swahili archive (~21 GB) is
+   larger than a typical Kaggle session's writable quota, so the notebook
+   calls the MDC API directly for a signed URL and stream-extracts from it:
+   one pass keeps only the transcript TSVs, then `select_subset.py` (step 2
+   below) runs there, then a second streaming pass keeps only the selected
+   clips — never the full corpus. Copy its resulting `selected_subset.tsv`
+   and `clips/` output into `data/manifests/` and `data/raw/` respectively
+   and skip to step 3.
 
 2. **Select a phoneme-balanced subset** (skip if you already did this via
    the notebook above):
