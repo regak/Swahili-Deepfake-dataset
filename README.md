@@ -26,6 +26,7 @@ swahili_deepfake_dataset/   Core pipeline logic (no heavy ML deps required)
 
 scripts/                    CLI entry points
   select_subset.py            Corpus metadata -> phoneme-balanced subset
+  extract_selected_clips.py    Corpus archive + selected subset -> just those clips (skips full extraction)
   preprocess_audio.py         Raw audio -> standardized, filtered WAV
   generate_deepfakes.py       Selected subset -> synthetic speech (per generator)
   build_manifest.py            Real + fake -> final labeled dataset manifest
@@ -55,20 +56,38 @@ you plan to use; see `requirements.txt` for details.
 
 1. **Obtain a source corpus.** Download Common Voice Swahili (or another
    corpus with a `path`/`sentence`/speaker-ID metadata table) into
-   `data/raw/`. If you're sourcing it from Mozilla Data Collective (MDC)
-   rather than the classic Common Voice downloads page, run
-   [`notebooks/download_mdc_common_voice_sw.ipynb`](notebooks/download_mdc_common_voice_sw.ipynb)
-   on Kaggle (with Internet enabled and an `MDC_API_KEY` Kaggle Secret set)
-   to fetch and extract it there via the `datacollective` SDK, then copy the
-   resulting `clips/` and `validated.tsv` into `data/raw/`.
+   `data/raw/`. Full corpora are large (tens of GB of audio) — extracting
+   everything before selection is usually unnecessary and, on disk-limited
+   environments, often won't fit at all.
 
-2. **Select a phoneme-balanced subset:**
+   If you're sourcing it from Mozilla Data Collective (MDC) rather than the
+   classic Common Voice downloads page,
+   [`notebooks/download_mdc_common_voice_sw.ipynb`](notebooks/download_mdc_common_voice_sw.ipynb)
+   runs the download-through-selection flow on Kaggle: it downloads the
+   archive via the `datacollective` SDK, extracts only the transcript TSVs,
+   runs `select_subset.py` (step 2 below) there, then extracts only the
+   selected clips with `extract_selected_clips.py` — never the full corpus.
+   Copy its resulting `selected_subset.tsv` and `clips/` output into
+   `data/manifests/` and `data/raw/` respectively and skip to step 3.
+
+2. **Select a phoneme-balanced subset** (skip if you already did this via
+   the notebook above):
 
    ```bash
    python scripts/select_subset.py data/raw/validated.tsv \
        --target-size 10000 --max-per-speaker 100 \
        --output data/manifests/selected_subset.tsv \
        --report data/manifests/phoneme_coverage_report.json
+   ```
+
+   If you have the full archive locally and only want the selected clips'
+   audio (not the whole corpus), extract just those:
+
+   ```bash
+   python scripts/extract_selected_clips.py \
+       data/raw/cv-corpus-26.0-2026-06-12-sw.tar.gz \
+       data/manifests/selected_subset.tsv \
+       data/raw/clips
    ```
 
 3. **Standardize and filter the corresponding real audio:**
