@@ -5,6 +5,13 @@ duration and exact duplicates.
 Usage:
     python scripts/preprocess_audio.py data/raw/clips data/processed \
         --min-duration 2.0 --max-duration 20.0
+
+    # Only process the files listed in a selected_subset.tsv, leaving the
+    # rest of a large corpus directory untouched (no copying needed):
+    python scripts/preprocess_audio.py \
+        /path/to/full/corpus/clips data/processed \
+        --subset data/manifests/selected_subset.tsv \
+        --min-duration 2.0 --max-duration 20.0
 """
 
 from __future__ import annotations
@@ -32,6 +39,14 @@ def main() -> None:
     parser.add_argument("--target-sr", type=int, default=16000)
     parser.add_argument("--min-duration", type=float, default=2.0)
     parser.add_argument("--max-duration", type=float, default=20.0)
+    parser.add_argument(
+        "--subset",
+        default=None,
+        help="Optional TSV with an 'id' column (e.g. selected_subset.tsv). If given, only "
+        "files directly under input_dir matching an id are read and standardized -- the rest "
+        "of input_dir (e.g. a full corpus of hundreds of thousands of clips) is never touched, "
+        "so nothing needs to be copied out of it first.",
+    )
     parser.add_argument("--manifest", default="preprocess_manifest.tsv")
     args = parser.parse_args()
 
@@ -39,7 +54,24 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    raw_files = sorted(p for p in input_dir.rglob("*") if p.suffix.lower() in AUDIO_EXTENSIONS)
+    if args.subset:
+        with open(args.subset, newline="", encoding="utf-8") as f:
+            wanted = {row["id"] for row in csv.DictReader(f, delimiter="\t")}
+        raw_files = []
+        missing = []
+        for wanted_id in sorted(wanted):
+            candidate = input_dir / wanted_id
+            if candidate.suffix.lower() in AUDIO_EXTENSIONS and candidate.is_file():
+                raw_files.append(candidate)
+            else:
+                missing.append(wanted_id)
+        if missing:
+            print(
+                f"Warning: {len(missing)}/{len(wanted)} requested id(s) not found directly "
+                f"under {input_dir} (expects a flat clips directory), e.g.: {missing[:5]}"
+            )
+    else:
+        raw_files = sorted(p for p in input_dir.rglob("*") if p.suffix.lower() in AUDIO_EXTENSIONS)
     if not raw_files:
         raise SystemExit(f"No audio files found under {input_dir}")
 

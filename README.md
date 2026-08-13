@@ -103,7 +103,21 @@ you plan to use; see `requirements.txt` for details.
        data/raw/clips
    ```
 
-3. **Standardize and filter the corresponding real audio:**
+3. **Standardize and filter the corresponding real audio.** If the full
+   corpus is already extracted somewhere (e.g. from `load_dataset()`), point
+   directly at its `clips/` directory with `--subset` instead of copying
+   files out first — only the selected utterances are read and written;
+   the rest of the corpus (however large) is never touched:
+
+   ```bash
+   python scripts/preprocess_audio.py \
+       /path/to/full/corpus/clips data/processed \
+       --subset data/manifests/selected_subset.tsv \
+       --min-duration 2.0 --max-duration 20.0
+   ```
+
+   Otherwise, without `--subset`, it processes every audio file under
+   `input_dir`:
 
    ```bash
    python scripts/preprocess_audio.py data/raw/clips data/processed \
