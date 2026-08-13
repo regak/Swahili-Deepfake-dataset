@@ -83,6 +83,16 @@ you plan to use; see `requirements.txt` for details.
        --report data/manifests/phoneme_coverage_report.json
    ```
 
+   If the metadata came from `datacollective`'s `load_dataset()` (columns
+   `audio_path`/`transcription`/`speaker_id`, comma-separated) instead of a
+   classic Common Voice `validated.tsv`, save that DataFrame to a file and
+   pass `--schema mdc`:
+
+   ```bash
+   python scripts/select_subset.py data/raw/mdc_export.csv --schema mdc \
+       --target-size 10000 --max-per-speaker 100
+   ```
+
    If you have the full archive locally and only want the selected clips'
    audio (not the whole corpus), extract just those:
 
