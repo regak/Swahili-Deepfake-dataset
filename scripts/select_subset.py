@@ -27,6 +27,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from swahili_deepfake_dataset.phonemes import CORE_SWAHILI_GRAPHEMES
 from swahili_deepfake_dataset.selection import Utterance, coverage_report, select_balanced_subset
 
+# Python's csv module defaults to a 128KB field-size cap. A field that big
+# is virtually never a genuine transcript -- it almost always means a stray
+# unescaped quote or embedded newline desynced the parser's quote-matching,
+# causing it to swallow a large chunk of the file into one "field". Raising
+# the cap avoids a hard crash on that; load_utterances' returned row counts
+# are what actually reveal whether parsing went wrong.
+try:
+    csv.field_size_limit(sys.maxsize)
+except OverflowError:
+    csv.field_size_limit(2**31 - 1)
+
 # Column-name/delimiter presets per corpus export format. Individual
 # --id-col/--speaker-col/--text-col/--delimiter flags override these.
 SCHEMA_PRESETS = {
@@ -38,11 +49,15 @@ SCHEMA_PRESETS = {
 }
 
 
-def load_utterances(corpus_path: str, id_col: str, speaker_col: str, text_col: str, delimiter: str) -> list[Utterance]:
+def load_utterances(
+    corpus_path: str, id_col: str, speaker_col: str, text_col: str, delimiter: str
+) -> tuple[list[Utterance], int]:
     utterances = []
+    total_rows = 0
     with open(corpus_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=delimiter)
         for row in reader:
+            total_rows += 1
             text = (row.get(text_col) or "").strip()
             if not text:
                 continue
@@ -55,7 +70,7 @@ def load_utterances(corpus_path: str, id_col: str, speaker_col: str, text_col: s
             utterances.append(
                 Utterance(id=utterance_id, speaker_id=row.get(speaker_col, "unknown"), text=text)
             )
-    return utterances
+    return utterances, total_rows
 
 
 def main() -> None:
@@ -84,7 +99,16 @@ def main() -> None:
     text_col = args.text_col or preset["text_col"]
     delimiter = args.delimiter or preset["delimiter"]
 
-    utterances = load_utterances(args.corpus_tsv, id_col, speaker_col, text_col, delimiter)
+    utterances, total_rows = load_utterances(args.corpus_tsv, id_col, speaker_col, text_col, delimiter)
+    skipped = total_rows - len(utterances)
+    print(f"Parsed {total_rows} row(s) from {args.corpus_tsv}; {len(utterances)} usable, {skipped} skipped (empty transcript)")
+    if total_rows and skipped / total_rows > 0.5:
+        print(
+            "Warning: over half the rows were skipped. For an MDC/Common Voice export this usually "
+            "means a delimiter/quoting mismatch (rows got merged or misread), not genuinely empty "
+            "transcripts -- double check --delimiter and --schema/--text-col against the actual file "
+            "before trusting the selection below."
+        )
     if not utterances:
         raise SystemExit(f"No utterances with non-empty transcripts found in {args.corpus_tsv}")
 
