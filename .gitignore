@@ -5,6 +5,9 @@ __pycache__/
 .venv/
 venv/
 
+# Never commit real secrets; .env.example documents the expected keys.
+.env
+
 # Dataset artifacts are large and reproducible from the pipeline; they are
 # not committed to git. Publish releases via a dataset host (e.g. Zenodo,
 # Hugging Face Datasets) instead. See docs/METHODOLOGY.md.
