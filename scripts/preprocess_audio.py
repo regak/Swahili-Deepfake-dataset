@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import csv
 import sys
+from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -124,7 +125,10 @@ def main() -> None:
 
     kept_count = sum(1 for row in rows if row["kept"])
     print(f"Processed {len(rows)} files: {kept_count} kept, {len(rows) - kept_count} filtered out")
-    print(f"Duplicates removed: {len(duplicates)}")
+
+    reason_counts = Counter(row["reason"].split(":", 1)[0] for row in rows if not row["kept"])
+    for reason, count in sorted(reason_counts.items(), key=lambda kv: -kv[1]):
+        print(f"  {reason}: {count}")
 
 
 if __name__ == "__main__":
