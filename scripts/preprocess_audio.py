@@ -59,6 +59,11 @@ def main() -> None:
         "so nothing needs to be copied out of it first.",
     )
     parser.add_argument("--manifest", default="preprocess_manifest.tsv")
+    parser.add_argument(
+        "--filtered-out-list",
+        default="filtered_out.txt",
+        help="Plain-text file listing the source filename, duration, and reason for every filtered-out clip.",
+    )
     args = parser.parse_args()
 
     input_dir = Path(args.input_dir)
@@ -106,7 +111,14 @@ def main() -> None:
             reason = f"error:{exc}"
         if not kept and out_path.exists():
             out_path.unlink()
-        rows.append({"id": raw_path.stem, "path": str(out_path), "duration": f"{dur:.3f}", "kept": kept, "reason": reason})
+        rows.append({
+            "id": raw_path.stem,
+            "source_filename": raw_path.name,
+            "path": str(out_path),
+            "duration": f"{dur:.3f}",
+            "kept": kept,
+            "reason": reason,
+        })
         if kept:
             standardized_paths.append(str(out_path))
 
@@ -119,9 +131,17 @@ def main() -> None:
             Path(row["path"]).unlink(missing_ok=True)
 
     with open(args.manifest, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["id", "path", "duration", "kept", "reason"], delimiter="\t")
+        writer = csv.DictWriter(
+            f, fieldnames=["id", "source_filename", "path", "duration", "kept", "reason"], delimiter="\t"
+        )
         writer.writeheader()
         writer.writerows(rows)
+
+    filtered_rows = [row for row in rows if not row["kept"]]
+    with open(args.filtered_out_list, "w", encoding="utf-8") as f:
+        f.write("filename\tduration_seconds\treason\n")
+        for row in filtered_rows:
+            f.write(f"{row['source_filename']}\t{row['duration']}\t{row['reason']}\n")
 
     kept_count = sum(1 for row in rows if row["kept"])
     print(f"Processed {len(rows)} files: {kept_count} kept, {len(rows) - kept_count} filtered out")
@@ -129,6 +149,8 @@ def main() -> None:
     reason_counts = Counter(row["reason"].split(":", 1)[0] for row in rows if not row["kept"])
     for reason, count in sorted(reason_counts.items(), key=lambda kv: -kv[1]):
         print(f"  {reason}: {count}")
+    if filtered_rows:
+        print(f"Filtered-out filenames and durations written to {args.filtered_out_list}")
 
 
 if __name__ == "__main__":
