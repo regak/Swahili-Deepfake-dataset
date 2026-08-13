@@ -20,6 +20,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from swahili_deepfake_dataset.deepfake_gen import GENERATORS, SynthesisRequest
 
+# Python's csv module defaults to a 128KB field-size cap. A field that big
+# is virtually never genuine data -- it almost always means a stray
+# unescaped quote or embedded newline upstream desynced the parser's
+# quote-matching, causing it to swallow a large chunk of the file into one
+# "field". See select_subset.py for the same fix and fuller rationale.
+try:
+    csv.field_size_limit(sys.maxsize)
+except OverflowError:
+    csv.field_size_limit(2**31 - 1)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
