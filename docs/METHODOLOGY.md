@@ -106,12 +106,24 @@ Multiple synthesis/voice-cloning systems are used deliberately (see
 against only one generator's artifacts risks learning generator-specific
 quirks rather than general synthetic-speech artifacts. Supported backends:
 
-- **XTTS-v2** (Coqui TTS) — has native Swahili (`sw`) language support.
+- **XTTS-v2** (Coqui TTS) — no native Swahili (`sw`) language support (its
+  fixed language list is en, es, fr, de, it, pt, pl, tr, ru, nl, cs, ar,
+  zh-cn, hu, ko, ja, hi); the closest supported language code is used as a
+  documented approximation (default `es`; override with `--language`).
 - **YourTTS** (Coqui TTS) — zero-shot voice cloning; no native Swahili
   language embedding, so the closest supported language code is used as a
-  documented approximation. This limitation should be reported explicitly
-  in any published results using this backend.
+  documented approximation (default `en`; override with `--language`).
 - **Fish Speech** — voice cloning via reference audio.
+
+### Generator limitations
+
+Neither XTTS-v2 nor YourTTS has a native Swahili language embedding.
+Synthesis for both backends is driven by text and a Swahili reference
+voice, but the language code passed to the model (which affects the
+model's internal phonemization/text-front-end assumptions) is a
+closest-supported approximation rather than true Swahili. This limitation
+should be reported explicitly in any published results using these
+backends.
 
 Each real utterance selected in Stage 4 is used as the source text (and, for
 voice-cloning backends, the reference audio) for one synthetic counterpart

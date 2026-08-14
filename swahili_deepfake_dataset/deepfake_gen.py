@@ -30,11 +30,24 @@ class DeepfakeGenerator(ABC):
 
 
 class CoquiXTTSGenerator(DeepfakeGenerator):
-    """Voice-cloning generator backed by Coqui TTS's XTTS-v2 model."""
+    """Voice-cloning generator backed by Coqui TTS's XTTS-v2 model.
+
+    XTTS-v2 has no native Swahili ("sw") language support -- its supported
+    language list is fixed (en, es, fr, de, it, pt, pl, tr, ru, nl, cs, ar,
+    zh-cn, hu, ko, ja, hi) and passing "sw" raises an error. The closest
+    supported language is used as a documented approximation (see
+    docs/METHODOLOGY.md, "Generator limitations"), matching the pattern
+    already used for YourTTSGenerator below.
+    """
 
     name = "xtts_v2"
 
-    def __init__(self, model_name: str = "tts_models/multilingual/multi-dataset/xtts_v2", device: str = "cpu"):
+    def __init__(
+        self,
+        model_name: str = "tts_models/multilingual/multi-dataset/xtts_v2",
+        device: str = "cpu",
+        language: str = "es",
+    ):
         try:
             from TTS.api import TTS
         except ImportError as exc:
@@ -44,12 +57,13 @@ class CoquiXTTSGenerator(DeepfakeGenerator):
                 "Install with `pip install coqui-tts` (recommended on current Python) or `pip install TTS`."
             ) from exc
         self._tts = TTS(model_name).to(device)
+        self._language = language
 
     def synthesize(self, request: SynthesisRequest) -> str:
         self._tts.tts_to_file(
             text=request.text,
             speaker_wav=request.reference_audio_path,
-            language="sw",
+            language=self._language,
             file_path=request.output_path,
         )
         return request.output_path
@@ -65,7 +79,7 @@ class YourTTSGenerator(DeepfakeGenerator):
 
     name = "your_tts"
 
-    def __init__(self, device: str = "cpu"):
+    def __init__(self, device: str = "cpu", language: str = "en"):
         try:
             from TTS.api import TTS
         except ImportError as exc:
@@ -75,12 +89,13 @@ class YourTTSGenerator(DeepfakeGenerator):
                 "Install with `pip install coqui-tts` (recommended on current Python) or `pip install TTS`."
             ) from exc
         self._tts = TTS("tts_models/multilingual/multi-dataset/your_tts").to(device)
+        self._language = language
 
     def synthesize(self, request: SynthesisRequest) -> str:
         self._tts.tts_to_file(
             text=request.text,
             speaker_wav=request.reference_audio_path,
-            language="en",
+            language=self._language,
             file_path=request.output_path,
         )
         return request.output_path
