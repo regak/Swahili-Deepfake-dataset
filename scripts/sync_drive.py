@@ -51,6 +51,13 @@ def run_rsync(src: Path, dst: Path) -> None:
             "`apt-get install -y rsync`."
         )
     dst.mkdir(parents=True, exist_ok=True)
+    if not src.is_dir():
+        # Nothing to sync from yet -- the normal state before the first
+        # backup ever happens (restore) or before any pipeline step has
+        # written local output (backup). Not an error: rsync has no source
+        # directory to read, so treat it as a no-op rather than crashing.
+        print(f"Nothing to sync yet: {src} doesn't exist.")
+        return
     # Trailing slash on src copies its *contents* into dst, not the
     # directory itself -- matters for repeated syncs landing in the same place.
     subprocess.run(["rsync", "-a", f"{src}/", f"{dst}/"], check=True)
