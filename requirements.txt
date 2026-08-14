@@ -8,7 +8,13 @@ numpy>=1.24
 
 # Deepfake generation (scripts/generate_deepfakes.py) -- heavy, install only
 # when actually synthesizing speech. Uncomment the backend(s) you use.
-# TTS>=0.22          # Coqui TTS: XTTS-v2, YourTTS
+# coqui-tts>=0.22     # Coqui TTS: XTTS-v2, YourTTS. Community-maintained fork of
+#                     # the original "TTS" package (abandoned by Coqui AI, capped
+#                     # at Python <3.12); coqui-tts supports current Python and
+#                     # installs under the same `TTS` import namespace, so no code
+#                     # changes are needed either way. Use whichever installs on
+#                     # your Python version -- `TTS` on Python <3.12, `coqui-tts`
+#                     # on Python >=3.10.
 # fish-speech         # Fish Speech (see https://github.com/fishaudio/fish-speech)
 
 # Testing

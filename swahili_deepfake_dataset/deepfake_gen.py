@@ -39,7 +39,9 @@ class CoquiXTTSGenerator(DeepfakeGenerator):
             from TTS.api import TTS
         except ImportError as exc:
             raise ImportError(
-                "CoquiXTTSGenerator requires the 'TTS' package. Install it with `pip install TTS`."
+                "CoquiXTTSGenerator requires the 'TTS' package (or its actively-maintained fork "
+                "'coqui-tts' on Python >=3.10, since the original 'TTS' package caps at Python <3.12). "
+                "Install with `pip install coqui-tts` (recommended on current Python) or `pip install TTS`."
             ) from exc
         self._tts = TTS(model_name).to(device)
 
@@ -68,7 +70,9 @@ class YourTTSGenerator(DeepfakeGenerator):
             from TTS.api import TTS
         except ImportError as exc:
             raise ImportError(
-                "YourTTSGenerator requires the 'TTS' package. Install it with `pip install TTS`."
+                "YourTTSGenerator requires the 'TTS' package (or its actively-maintained fork "
+                "'coqui-tts' on Python >=3.10, since the original 'TTS' package caps at Python <3.12). "
+                "Install with `pip install coqui-tts` (recommended on current Python) or `pip install TTS`."
             ) from exc
         self._tts = TTS("tts_models/multilingual/multi-dataset/your_tts").to(device)
 
