@@ -30,6 +30,7 @@ scripts/                    CLI entry points
   preprocess_audio.py         Raw audio -> standardized, filtered WAV
   generate_deepfakes.py       Selected subset -> synthetic speech (per generator)
   build_manifest.py            Real + fake -> final labeled dataset manifest
+  sync_drive.py                 Sync data/ to/from Google Drive (Colab session persistence)
 
 tests/                      Unit tests for the core pipeline logic
 docs/                       Methodology and paper outline
@@ -143,6 +144,45 @@ you plan to use; see `requirements.txt` for details.
 
 `data/manifests/dataset_manifest.csv` is then ready for training/evaluating
 detection models (e.g. AASIST, RawNet2, CNN/Transformer baselines).
+
+## Persisting outputs across Colab sessions
+
+Colab's local disk is wiped when a session ends or times out, and steps 3-4
+above (audio standardization, deepfake generation) can run for hours. Do
+not commit generated audio to this git repo to work around that -- GitHub
+hard-blocks files over 100MB and a dataset of this size (several GB per
+generator) will blow past its practical repo-size limits and bloat the
+repo's history permanently. Instead, use `sync_drive.py` to mirror `data/`
+to a Google Drive folder:
+
+```python
+# Once per session, in a notebook cell (can't be done from a plain script):
+from google.colab import drive
+drive.mount('/content/drive')
+```
+
+```bash
+# At the start of every session, before re-running any pipeline step --
+# pulls back whatever was already generated so generate_deepfakes.py's
+# skip-existing-files resume logic doesn't redo completed work:
+python scripts/sync_drive.py restore
+
+# In a separate cell, while generate_deepfakes.py runs in another -- keeps
+# backing up local -> Drive every 5 minutes so a disconnect never loses
+# more than the last sync interval:
+python scripts/sync_drive.py watch --interval 300
+
+# Always run once more manually right before intentionally closing the
+# session, rather than relying solely on the periodic timer:
+python scripts/sync_drive.py backup
+```
+
+Generation itself still writes to the local `data/` directories as usual
+(Drive's FUSE mount is noticeably slower for many small-file writes, so
+syncing on an interval keeps generation throughput unaffected). Combined
+with `generate_deepfakes.py`'s atomic per-file writes, the worst case from
+an interruption is losing at most the last sync interval's worth of
+progress -- never a corrupted file, and never a full restart.
 
 ## Tests
 
