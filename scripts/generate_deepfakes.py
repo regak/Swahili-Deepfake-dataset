@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import csv
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -44,6 +45,18 @@ def main() -> None:
     )
     parser.add_argument("--audio-ext", default=".wav")
     parser.add_argument("--manifest", default="fake_manifest.tsv")
+    parser.add_argument(
+        "--device", default="cpu",
+        help="Device for synthesis, e.g. 'cpu' or 'cuda' (GPU). Passed to generators that accept a "
+        "device argument (xtts_v2, your_tts). Default 'cpu' is safe everywhere but slow -- pass "
+        "'cuda' on a GPU runtime.",
+    )
+    parser.add_argument(
+        "--overwrite", action="store_true",
+        help="Regenerate even if the output file already exists. Default: skip already-generated "
+        "files, so re-running the same command after an interruption resumes instead of restarting.",
+    )
+    parser.add_argument("--progress-every", type=int, default=50, help="Print a progress line every N files processed.")
     args = parser.parse_args()
 
     with open(args.subset_tsv, newline="", encoding="utf-8") as f:
@@ -71,21 +84,34 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     fake_rows = []
     for gen_name in args.generators:
-        generator = GENERATORS[gen_name]()
+        generator = GENERATORS[gen_name](device=args.device)
         gen_dir = output_dir / gen_name
         gen_dir.mkdir(parents=True, exist_ok=True)
-        for row in rows:
+        generated = skipped = failed = 0
+        start_time = time.monotonic()
+        for i, row in enumerate(rows, start=1):
             uid = row["id"]
             uid_stem = Path(uid).stem
             ref_path = real_audio_dir / f"{uid_stem}{args.audio_ext}"
             out_path = gen_dir / f"{uid_stem}{args.audio_ext}"
-            request = SynthesisRequest(
-                utterance_id=uid,
-                text=row["text"],
-                reference_audio_path=str(ref_path),
-                output_path=str(out_path),
-            )
-            generator.synthesize(request)
+
+            if out_path.is_file() and not args.overwrite:
+                skipped += 1
+            else:
+                request = SynthesisRequest(
+                    utterance_id=uid,
+                    text=row["text"],
+                    reference_audio_path=str(ref_path),
+                    output_path=str(out_path),
+                )
+                try:
+                    generator.synthesize(request)
+                    generated += 1
+                except Exception as exc:  # noqa: BLE001 - report and continue over a long batch
+                    failed += 1
+                    print(f"  [{gen_name}] FAILED on {uid}: {exc}")
+                    continue
+
             fake_rows.append(
                 {
                     "id": f"{gen_name}_{uid}",
@@ -95,6 +121,13 @@ def main() -> None:
                     "audio_path": str(out_path),
                 }
             )
+            if i % args.progress_every == 0 or i == len(rows):
+                elapsed = time.monotonic() - start_time
+                print(
+                    f"  [{gen_name}] {i}/{len(rows)} processed "
+                    f"({generated} generated, {skipped} skipped, {failed} failed, {elapsed:.0f}s elapsed)"
+                )
+        print(f"[{gen_name}] done: {generated} generated, {skipped} skipped (already existed), {failed} failed")
 
     Path(args.manifest).parent.mkdir(parents=True, exist_ok=True)
     with open(args.manifest, "w", newline="", encoding="utf-8") as f:
@@ -104,7 +137,7 @@ def main() -> None:
         writer.writeheader()
         writer.writerows(fake_rows)
 
-    print(f"Generated {len(fake_rows)} deepfake samples across {len(args.generators)} generator(s)")
+    print(f"Generated {len(fake_rows)} deepfake samples (including any resumed/skipped) across {len(args.generators)} generator(s)")
 
 
 if __name__ == "__main__":
