@@ -15,6 +15,9 @@ numpy>=1.24
 #                     # changes are needed either way. Use whichever installs on
 #                     # your Python version -- `TTS` on Python <3.12, `coqui-tts`
 #                     # on Python >=3.10.
+# f5-tts              # F5-TTS: f5_tts_sw generator, backed by the Swahili-finetuned
+# huggingface_hub     # stem-content-ai-project/f5-tts-sw checkpoint (native Swahili,
+#                     # unlike the approximations above). See docs/METHODOLOGY.md.
 # fish-speech         # Fish Speech (see https://github.com/fishaudio/fish-speech)
 
 # Testing

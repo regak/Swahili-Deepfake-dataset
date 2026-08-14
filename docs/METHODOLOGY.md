@@ -106,12 +106,42 @@ Multiple synthesis/voice-cloning systems are used deliberately (see
 against only one generator's artifacts risks learning generator-specific
 quirks rather than general synthetic-speech artifacts. Supported backends:
 
-- **XTTS-v2** (Coqui TTS) — has native Swahili (`sw`) language support.
+- **XTTS-v2** (Coqui TTS) — no native Swahili (`sw`) language support (its
+  fixed language list is en, es, fr, de, it, pt, pl, tr, ru, nl, cs, ar,
+  zh-cn, hu, ko, ja, hi); the closest supported language code is used as a
+  documented approximation (default `es`; override with `--language`).
 - **YourTTS** (Coqui TTS) — zero-shot voice cloning; no native Swahili
   language embedding, so the closest supported language code is used as a
-  documented approximation. This limitation should be reported explicitly
-  in any published results using this backend.
+  documented approximation (default `en`; override with `--language`).
+- **F5-TTS (Swahili finetune)** — zero-shot voice cloning backed by
+  [`stem-content-ai-project/f5-tts-sw`](https://huggingface.co/stem-content-ai-project/f5-tts-sw),
+  a Swahili finetune of F5TTS_v1_Base. Unlike XTTS-v2/YourTTS above, this
+  checkpoint has genuine Swahili pronunciation — it was finetuned on
+  FLEURS-R sw and Common Voice sw v17, reporting CER 0.029 / WER 0.202 on
+  held-out Swahili sentences per its model card (Whisper-large-v3 sw
+  scoring) at time of writing.
 - **Fish Speech** — voice cloning via reference audio.
+
+### Generator limitations
+
+Neither XTTS-v2 nor YourTTS has a native Swahili language embedding.
+Synthesis for both backends is driven by text and a Swahili reference
+voice, but the language code passed to the model (which affects the
+model's internal phonemization/text-front-end assumptions) is a
+closest-supported approximation rather than true Swahili. This limitation
+should be reported explicitly in any published results using these
+backends.
+
+The F5-TTS Swahili backend avoids that approximation, but has two
+limitations of its own worth reporting: (1) its model license was not
+confirmed at integration time — verify the license field on the Hugging
+Face repo before redistributing outputs in a published dataset release;
+(2) it was partly finetuned on Common Voice sw v17, the same corpus family
+used as this project's real-speech source, so if `select_subset.py`'s
+chosen speakers overlap with this checkpoint's finetuning data, this
+generator may produce higher-fidelity fakes for those specific speakers
+than for genuinely unseen ones — an advantage the other generators, which
+have no Swahili training data at all, do not share.
 
 Each real utterance selected in Stage 4 is used as the source text (and, for
 voice-cloning backends, the reference audio) for one synthetic counterpart

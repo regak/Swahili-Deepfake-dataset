@@ -56,6 +56,14 @@ def main() -> None:
         help="Regenerate even if the output file already exists. Default: skip already-generated "
         "files, so re-running the same command after an interruption resumes instead of restarting.",
     )
+    parser.add_argument(
+        "--language", default=None,
+        help="Override the language code passed to voice-cloning backends that require one "
+        "(xtts_v2, your_tts). Neither backend has native Swahili support, so a closest-supported "
+        "language is used as a documented approximation (see docs/METHODOLOGY.md, 'Generator "
+        "limitations'). Defaults: xtts_v2='es', your_tts='en'. Applies to all such generators in "
+        "--generators for this run.",
+    )
     parser.add_argument("--progress-every", type=int, default=50, help="Print a progress line every N files processed.")
     args = parser.parse_args()
 
@@ -84,7 +92,10 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     fake_rows = []
     for gen_name in args.generators:
-        generator = GENERATORS[gen_name](device=args.device)
+        generator_kwargs = {"device": args.device}
+        if args.language is not None and gen_name in ("xtts_v2", "your_tts"):
+            generator_kwargs["language"] = args.language
+        generator = GENERATORS[gen_name](**generator_kwargs)
         gen_dir = output_dir / gen_name
         gen_dir.mkdir(parents=True, exist_ok=True)
         generated = skipped = failed = 0
