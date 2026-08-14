@@ -211,7 +211,12 @@ class F5TTSSwahiliGenerator(DeepfakeGenerator):
 
     name = "f5_tts_sw"
 
-    def __init__(self, device: str = "cpu", repo_id: str = "stem-content-ai-project/f5-tts-sw"):
+    def __init__(
+        self,
+        device: str = "cpu",
+        repo_id: str = "stem-content-ai-project/f5-tts-sw",
+        nfe_step: int = 32,
+    ):
         try:
             from f5_tts.api import F5TTS
             from huggingface_hub import hf_hub_download
@@ -223,6 +228,11 @@ class F5TTSSwahiliGenerator(DeepfakeGenerator):
         ckpt_file = hf_hub_download(repo_id, "model.safetensors")
         vocab_file = hf_hub_download(repo_id, "vocab.txt")
         self._tts = F5TTS(model="F5TTS_v1_Base", ckpt_file=ckpt_file, vocab_file=vocab_file, device=device)
+        # Number of flow-matching sampling steps. Lower = faster, at some
+        # cost to audio quality; the model card's benchmark numbers were
+        # produced at the library default (32), so treat anything lower as
+        # an unvalidated quality/speed tradeoff for your own run.
+        self._nfe_step = nfe_step
 
     def synthesize(self, request: SynthesisRequest) -> str:
         text = normalize_swahili_text_for_f5tts(request.text)
@@ -231,6 +241,7 @@ class F5TTSSwahiliGenerator(DeepfakeGenerator):
             ref_text=text,
             gen_text=text,
             file_wave=request.output_path,
+            nfe_step=self._nfe_step,
         )
         return request.output_path
 

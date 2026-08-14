@@ -73,6 +73,12 @@ def main() -> None:
         "--generators for this run.",
     )
     parser.add_argument("--progress-every", type=int, default=50, help="Print a progress line every N files processed.")
+    parser.add_argument(
+        "--nfe-step", type=int, default=None,
+        help="Override the number of flow-matching sampling steps for f5_tts_sw (default in the "
+        "underlying model is 32). Lower values (e.g. 16) roughly halve synthesis time at some cost "
+        "to audio quality -- useful for shortening long batches. Ignored by other generators.",
+    )
     args = parser.parse_args()
 
     with open(args.subset_tsv, newline="", encoding="utf-8") as f:
@@ -117,9 +123,17 @@ def main() -> None:
         generator_kwargs = {"device": args.device}
         if args.language is not None and gen_name in ("xtts_v2", "your_tts"):
             generator_kwargs["language"] = args.language
+        if args.nfe_step is not None and gen_name == "f5_tts_sw":
+            generator_kwargs["nfe_step"] = args.nfe_step
         generator = GENERATORS[gen_name](**generator_kwargs)
         gen_dir = output_dir / gen_name
         gen_dir.mkdir(parents=True, exist_ok=True)
+        # Clean up any partial output left by a previous run that was
+        # interrupted mid-write (e.g. a Colab disconnect) -- see the atomic
+        # rename below for why these can only be incomplete, never a file
+        # that was ever mistaken for a finished output.
+        for stale_tmp in gen_dir.glob("*.tmp"):
+            stale_tmp.unlink()
         generated = skipped = failed = 0
         start_time = time.monotonic()
         for i, row in enumerate(rows, start=1):
@@ -131,17 +145,26 @@ def main() -> None:
             if out_path.is_file() and not args.overwrite:
                 skipped += 1
             else:
+                # Write to a temp path and rename into place only once
+                # synthesize() has fully succeeded, so an interruption mid-
+                # write (Colab disconnect, OOM kill, ...) can never leave
+                # behind a truncated file that a later resume mistakes for
+                # a completed one -- out_path.is_file() only becomes true
+                # after the file is actually whole.
+                tmp_path = out_path.with_name(out_path.name + ".tmp")
                 request = SynthesisRequest(
                     utterance_id=uid,
                     text=row["text"],
                     reference_audio_path=str(ref_path),
-                    output_path=str(out_path),
+                    output_path=str(tmp_path),
                 )
                 try:
                     generator.synthesize(request)
+                    tmp_path.replace(out_path)
                     generated += 1
                 except Exception as exc:  # noqa: BLE001 - report and continue over a long batch
                     failed += 1
+                    tmp_path.unlink(missing_ok=True)
                     print(f"  [{gen_name}] FAILED on {uid}: {exc}")
                     continue
 
