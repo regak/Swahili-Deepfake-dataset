@@ -21,6 +21,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from swahili_deepfake_dataset.deepfake_gen import GENERATORS, SynthesisRequest
 
+# A genuine utterance's text is one sentence, typically well under 300
+# characters. A selected_subset.tsv row far beyond that is almost always a
+# leftover from a csv quoting/delimiter desync in select_subset.py's
+# upstream corpus parsing (fixed there, but pre-existing subset files may
+# still carry corrupted rows) -- reject it here too rather than feeding a
+# garbage multi-row blob into a generator's text-to-speech/alignment step.
+MAX_PLAUSIBLE_TEXT_LENGTH = 500
+
 # Python's csv module defaults to a 128KB field-size cap. A field that big
 # is virtually never genuine data -- it almost always means a stray
 # unescaped quote or embedded newline upstream desynced the parser's
@@ -71,6 +79,20 @@ def main() -> None:
         rows = list(csv.DictReader(f, delimiter="\t"))
     if not rows:
         raise SystemExit(f"No rows found in {args.subset_tsv}")
+
+    oversized_rows = [r for r in rows if len(r["text"]) > MAX_PLAUSIBLE_TEXT_LENGTH]
+    if oversized_rows:
+        print(
+            f"Warning: {len(oversized_rows)}/{len(rows)} row(s) in {args.subset_tsv} have an implausibly "
+            f"long text field (>{MAX_PLAUSIBLE_TEXT_LENGTH} chars) -- almost certainly a leftover csv "
+            "quoting/delimiter desync from select_subset.py's corpus parsing, not a genuine transcript "
+            "(see select_subset.py's QUOTE_NONE fix). Skipping them; re-running select_subset.py on the "
+            "raw corpus is recommended so phoneme-balance stats and speaker selection aren't skewed by "
+            f"these rows too, e.g.: {[r['id'] for r in oversized_rows[:5]]}"
+        )
+        rows = [r for r in rows if len(r["text"]) <= MAX_PLAUSIBLE_TEXT_LENGTH]
+        if not rows:
+            raise SystemExit(f"No usable rows left in {args.subset_tsv} after filtering out oversized text fields")
 
     real_audio_dir = Path(args.real_audio_dir)
     # preprocess_audio.py writes output by stem (e.g. clip1.mp3 -> clip1.wav),

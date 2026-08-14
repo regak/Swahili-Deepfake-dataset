@@ -38,28 +38,55 @@ try:
 except OverflowError:
     csv.field_size_limit(2**31 - 1)
 
-# Column-name/delimiter presets per corpus export format. Individual
+# Column-name/delimiter/quoting presets per corpus export format. Individual
 # --id-col/--speaker-col/--text-col/--delimiter flags override these.
+#
+# quoting=csv.QUOTE_NONE for common_voice is deliberate, not a default:
+# Common Voice's validated.tsv is a raw TSV, not an RFC4180-quoted CSV --
+# a "sentence" field can contain a literal '"' character (a quoted phrase,
+# a curly-quote-like glyph, etc.) that was never meant to function as a CSV
+# quote character. Python's csv module defaults to quotechar='"' with
+# QUOTE_MINIMAL, so it misreads that literal '"' as the start of a quoted
+# field and keeps consuming subsequent tabs/newlines as literal field
+# content until it finds another '"' to "close" it -- silently merging
+# several rows' data into one row's text field instead of raising an error.
+# QUOTE_NONE disables quote-character handling entirely, matching how these
+# files are actually formatted. MDC's export is a real pandas-written CSV
+# with proper quoting, so it keeps the csv module's default (QUOTE_MINIMAL).
 SCHEMA_PRESETS = {
-    # Classic Common Voice validated.tsv (client_id, path, sentence, ...).
-    "common_voice": {"id_col": "path", "speaker_col": "client_id", "text_col": "sentence", "delimiter": "\t"},
-    # Mozilla Data Collective's load_dataset() DataFrame layout (audio_path,
-    # transcription, speaker_id, sentence_id, sentence_domain, ...).
-    "mdc": {"id_col": "audio_path", "speaker_col": "speaker_id", "text_col": "transcription", "delimiter": ","},
+    "common_voice": {
+        "id_col": "path", "speaker_col": "client_id", "text_col": "sentence",
+        "delimiter": "\t", "quoting": csv.QUOTE_NONE,
+    },
+    "mdc": {
+        "id_col": "audio_path", "speaker_col": "speaker_id", "text_col": "transcription",
+        "delimiter": ",", "quoting": csv.QUOTE_MINIMAL,
+    },
 }
+
+# A genuine Common Voice/MDC sentence is one utterance, typically well under
+# 300 characters. Anything far beyond that is essentially always a
+# quoting/delimiter desync that glommed multiple rows into one field (see
+# SCHEMA_PRESETS above) rather than a real transcript -- reject it instead
+# of letting it corrupt phoneme-balance stats and downstream synthesis.
+MAX_PLAUSIBLE_TEXT_LENGTH = 500
 
 
 def load_utterances(
-    corpus_path: str, id_col: str, speaker_col: str, text_col: str, delimiter: str
-) -> tuple[list[Utterance], int]:
+    corpus_path: str, id_col: str, speaker_col: str, text_col: str, delimiter: str, quoting: int = csv.QUOTE_MINIMAL
+) -> tuple[list[Utterance], int, int]:
     utterances = []
     total_rows = 0
+    oversized = 0
     with open(corpus_path, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f, delimiter=delimiter)
+        reader = csv.DictReader(f, delimiter=delimiter, quoting=quoting)
         for row in reader:
             total_rows += 1
             text = (row.get(text_col) or "").strip()
             if not text:
+                continue
+            if len(text) > MAX_PLAUSIBLE_TEXT_LENGTH:
+                oversized += 1
                 continue
             raw_id = row[id_col]
             # Normalize to a bare filename: MDC's audio_path is a full
@@ -70,7 +97,7 @@ def load_utterances(
             utterances.append(
                 Utterance(id=utterance_id, speaker_id=row.get(speaker_col, "unknown"), text=text)
             )
-    return utterances, total_rows
+    return utterances, total_rows, oversized
 
 
 def main() -> None:
@@ -86,6 +113,14 @@ def main() -> None:
     parser.add_argument("--speaker-col", default=None, help="Column holding the speaker identifier (overrides --schema)")
     parser.add_argument("--text-col", default=None, help="Column holding the transcript text (overrides --schema)")
     parser.add_argument("--delimiter", default=None, help="Field delimiter, e.g. ',' or '\\t' (overrides --schema)")
+    parser.add_argument(
+        "--quote-minimal", action="store_true",
+        help="Use standard RFC4180 CSV quote handling (quotechar='\"', QUOTE_MINIMAL) instead of the "
+        "schema's preset. Common Voice's raw TSV export needs QUOTE_NONE (the common_voice preset's "
+        "default) because literal '\"' characters in sentence text are not CSV quote characters -- "
+        "only pass this if your corpus file is genuinely RFC4180-quoted and --schema common_voice "
+        "would otherwise misparse it.",
+    )
     parser.add_argument("--target-size", type=int, default=10000)
     parser.add_argument("--max-per-speaker", type=int, default=100)
     parser.add_argument("--speaker-bonus", type=float, default=0.5)
@@ -98,11 +133,16 @@ def main() -> None:
     speaker_col = args.speaker_col or preset["speaker_col"]
     text_col = args.text_col or preset["text_col"]
     delimiter = args.delimiter or preset["delimiter"]
+    quoting = csv.QUOTE_MINIMAL if args.quote_minimal else preset["quoting"]
 
-    utterances, total_rows = load_utterances(args.corpus_tsv, id_col, speaker_col, text_col, delimiter)
-    skipped = total_rows - len(utterances)
-    print(f"Parsed {total_rows} row(s) from {args.corpus_tsv}; {len(utterances)} usable, {skipped} skipped (empty transcript)")
-    if total_rows and skipped / total_rows > 0.5:
+    utterances, total_rows, oversized = load_utterances(args.corpus_tsv, id_col, speaker_col, text_col, delimiter, quoting)
+    empty = total_rows - len(utterances) - oversized
+    print(
+        f"Parsed {total_rows} row(s) from {args.corpus_tsv}; {len(utterances)} usable, "
+        f"{empty} skipped (empty transcript), {oversized} skipped (implausibly long -- likely a "
+        f"quoting/delimiter desync that merged multiple rows into one field)"
+    )
+    if total_rows and (empty + oversized) / total_rows > 0.5:
         print(
             "Warning: over half the rows were skipped. For an MDC/Common Voice export this usually "
             "means a delimiter/quoting mismatch (rows got merged or misread), not genuinely empty "
