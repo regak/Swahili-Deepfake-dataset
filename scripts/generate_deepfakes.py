@@ -123,6 +123,8 @@ def main() -> None:
         generator_kwargs = {"device": args.device}
         if args.language is not None and gen_name in ("xtts_v2", "your_tts"):
             generator_kwargs["language"] = args.language
+        if args.language is not None and gen_name == "chatterbox":
+            generator_kwargs["language_id"] = args.language
         if args.nfe_step is not None and gen_name == "f5_tts_sw":
             generator_kwargs["nfe_step"] = args.nfe_step
         generator = GENERATORS[gen_name](**generator_kwargs)
@@ -132,7 +134,7 @@ def main() -> None:
         # interrupted mid-write (e.g. a Colab disconnect) -- see the atomic
         # rename below for why these can only be incomplete, never a file
         # that was ever mistaken for a finished output.
-        for stale_tmp in gen_dir.glob("*.tmp"):
+        for stale_tmp in gen_dir.glob(f"*.tmp{args.audio_ext}"):
             stale_tmp.unlink()
         generated = skipped = failed = 0
         start_time = time.monotonic()
@@ -150,8 +152,10 @@ def main() -> None:
                 # write (Colab disconnect, OOM kill, ...) can never leave
                 # behind a truncated file that a later resume mistakes for
                 # a completed one -- out_path.is_file() only becomes true
-                # after the file is actually whole.
-                tmp_path = out_path.with_name(out_path.name + ".tmp")
+                # after the file is actually whole. The temp name keeps a real
+                # extension ("x.tmp.wav", not "x.wav.tmp") because some backends
+                # (e.g. f5-tts, torchaudio) infer the output format from it.
+                tmp_path = out_path.with_name(f"{out_path.stem}.tmp{out_path.suffix}")
                 request = SynthesisRequest(
                     utterance_id=uid,
                     text=row["text"],

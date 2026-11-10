@@ -31,10 +31,11 @@ scripts/                    CLI entry points
   generate_deepfakes.py       Selected subset -> synthetic speech (per generator)
   build_manifest.py            Real + fake -> final labeled dataset manifest
   sync_drive.py                 Sync data/ to/from Google Drive (Colab session persistence)
+  qc_generated.py               QC pass over generated audio (silence, truncation, runaway length, clipping)
 
 tests/                      Unit tests for the core pipeline logic
 docs/                       Methodology and paper outline
-notebooks/                  Kaggle/Jupyter notebooks (e.g. corpus download)
+notebooks/                  Kaggle/Jupyter notebooks (corpus download; per-generator Kaggle runs)
 data/                       Not committed to git (see .gitignore); local working directories
   raw/         Downloaded corpus audio + metadata
   processed/   Standardized/filtered real audio
@@ -125,13 +126,30 @@ you plan to use; see `requirements.txt` for details.
        --min-duration 2.0 --max-duration 20.0
    ```
 
-4. **Generate deepfakes** with one or more backends:
+4. **Generate deepfakes** with one or more backends (`xtts_v2`, `your_tts`,
+   `f5_tts_sw`, `fish_speech`, `chatterbox`, `voxcpm` -- see
+   [`docs/GENERATORS.md`](docs/GENERATORS.md) for which support Swahili):
 
    ```bash
    python scripts/generate_deepfakes.py \
        data/manifests/selected_subset.tsv data/processed data/generated \
-       --generators xtts_v2 your_tts \
+       --generators f5_tts_sw \
        --manifest data/manifests/fake_manifest.tsv
+   ```
+
+   Use a **separate `--manifest` file per generator run** (e.g.
+   `fake_manifest_chatterbox.tsv`): the manifest is rewritten each run, so
+   reusing one name overwrites earlier generators' rows. Merge them before
+   step 5. Per-generator Kaggle notebooks (`notebooks/kaggle_chatterbox.ipynb`,
+   `notebooks/kaggle_voxcpm.ipynb`) automate this with checkpointed runs and
+   rclone pushes to Drive.
+
+   Then check what was generated -- file counts alone miss silent or runaway
+   clips:
+
+   ```bash
+   python scripts/qc_generated.py data/generated/chatterbox data/processed \
+       --output data/manifests/qc_chatterbox.csv
    ```
 
 5. **Build the final labeled manifest** with speaker-independent splits:

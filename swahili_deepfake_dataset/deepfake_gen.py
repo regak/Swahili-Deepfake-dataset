@@ -274,9 +274,96 @@ class FishSpeechGenerator(DeepfakeGenerator):
         return request.output_path
 
 
+class ChatterboxGenerator(DeepfakeGenerator):
+    """Zero-shot voice-cloning generator backed by Resemble AI's Chatterbox
+    Multilingual model (MIT license, self-hosted -- no API key). One of the few
+    free/local backends with genuine Swahili support (`language_id="sw"`).
+    See https://github.com/resemble-ai/chatterbox.
+
+    Known behaviour: Chatterbox's alignment analyzer sometimes forces an EOS
+    token ("long_tail=True" warnings) which truncates the generation. Run
+    `scripts/qc_generated.py` over the output and report/filter flagged clips.
+    Output is 24 kHz.
+    """
+
+    name = "chatterbox"
+
+    def __init__(self, device: str = "cpu", language_id: str = "sw"):
+        try:
+            from chatterbox.mtl_tts import ChatterboxMultilingualTTS
+        except ImportError as exc:
+            raise ImportError(
+                "ChatterboxGenerator requires the 'chatterbox-tts' package. "
+                "Install with `pip install chatterbox-tts`."
+            ) from exc
+        self._model = ChatterboxMultilingualTTS.from_pretrained(device=device)
+        self._language_id = language_id
+
+    def synthesize(self, request: SynthesisRequest) -> str:
+        import torchaudio as ta
+
+        wav = self._model.generate(
+            request.text,
+            language_id=self._language_id,
+            audio_prompt_path=request.reference_audio_path,
+        )
+        ta.save(request.output_path, wav, self._model.sr)
+        return request.output_path
+
+
+class VoxCPMGenerator(DeepfakeGenerator):
+    """Zero-shot voice-cloning generator backed by OpenBMB VoxCPM2 (Apache-2.0,
+    2B params, 30 languages incl. Swahili, 48 kHz output). See
+    https://github.com/OpenBMB/VoxCPM.
+
+    Uses VoxCPM2's "ultimate cloning": the reference audio plus its own
+    transcript (the utterance's real recording and text), the same pattern as
+    `f5_tts_sw`. `device` is accepted for interface compatibility; VoxCPM
+    chooses its device itself, so confirm GPU use via the printed device line.
+    """
+
+    name = "voxcpm"
+
+    def __init__(self, device: str = "cpu", cfg_value: float = 2.0, inference_timesteps: int = 10):
+        try:
+            from voxcpm import VoxCPM
+        except ImportError as exc:
+            raise ImportError(
+                "VoxCPMGenerator requires the 'voxcpm' package. Install with `pip install voxcpm`."
+            ) from exc
+        self._model = VoxCPM.from_pretrained("openbmb/VoxCPM2", load_denoiser=False)
+        self._cfg_value = cfg_value
+        self._inference_timesteps = inference_timesteps
+        try:
+            import torch
+
+            print(
+                "voxcpm params device:", next(self._model.tts_model.parameters()).device,
+                "| cuda available:", torch.cuda.is_available(), flush=True,
+            )
+        except Exception as exc:  # noqa: BLE001 - diagnostic only
+            print("voxcpm device probe failed:", exc, flush=True)
+
+    def synthesize(self, request: SynthesisRequest) -> str:
+        import soundfile as sf
+
+        wav = self._model.generate(
+            text=request.text,
+            prompt_wav_path=request.reference_audio_path,
+            prompt_text=request.text,
+            reference_wav_path=request.reference_audio_path,
+            cfg_value=self._cfg_value,
+            inference_timesteps=self._inference_timesteps,
+        )
+        sf.write(request.output_path, wav, self._model.tts_model.sample_rate)
+        return request.output_path
+
+
 GENERATORS = {
     "xtts_v2": CoquiXTTSGenerator,
     "your_tts": YourTTSGenerator,
     "f5_tts_sw": F5TTSSwahiliGenerator,
     "fish_speech": FishSpeechGenerator,
+    "chatterbox": ChatterboxGenerator,
+    "voxcpm": VoxCPMGenerator,
 }

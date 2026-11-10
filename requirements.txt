@@ -19,6 +19,14 @@ numpy>=1.24
 # huggingface_hub     # stem-content-ai-project/f5-tts-sw checkpoint (native Swahili,
 #                     # unlike the approximations above). See docs/METHODOLOGY.md.
 # fish-speech         # Fish Speech (see https://github.com/fishaudio/fish-speech)
+# chatterbox-tts      # Chatterbox Multilingual (chatterbox generator, `language_id="sw"`).
+#                     # On Kaggle/Colab images it can leave torch/torchvision mismatched
+#                     # and pull numpy>=2, which breaks numba: after installing, run
+#                     #   pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 \
+#                     #       --index-url https://download.pytorch.org/whl/cu124
+#                     #   pip install 'numpy==1.26.4'
+#                     # if `from chatterbox.mtl_tts import ChatterboxMultilingualTTS` fails.
+# voxcpm              # VoxCPM2 (voxcpm generator, Apache-2.0). Needs a GPU (~8 GB VRAM).
 
 # Testing
 pytest>=7.0

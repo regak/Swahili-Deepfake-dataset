@@ -120,7 +120,16 @@ quirks rather than general synthetic-speech artifacts. Supported backends:
   FLEURS-R sw and Common Voice sw v17, reporting CER 0.029 / WER 0.202 on
   held-out Swahili sentences per its model card (Whisper-large-v3 sw
   scoring) at time of writing.
+- **Chatterbox Multilingual** (Resemble AI, MIT) — zero-shot voice cloning
+  with `language_id="sw"`, one of its 23 supported languages. Output 24 kHz.
+- **VoxCPM2** (OpenBMB, Apache-2.0, 2B params) — zero-shot cloning in
+  "ultimate cloning" mode (reference audio plus its own transcript), Swahili
+  is one of its 30 listed languages. Output 48 kHz.
 - **Fish Speech** — voice cloning via reference audio.
+
+See [`GENERATORS.md`](GENERATORS.md) for the per-generator comparison
+(language support, license, sample rate, known failure modes) and which
+generators were actually used for the released dataset.
 
 ### Generator limitations
 
@@ -142,6 +151,20 @@ chosen speakers overlap with this checkpoint's finetuning data, this
 generator may produce higher-fidelity fakes for those specific speakers
 than for genuinely unseen ones — an advantage the other generators, which
 have no Swahili training data at all, do not share.
+
+Chatterbox and VoxCPM2 add two further limitations: (1) neither was
+finetuned on Swahili specifically, so pronunciation quality is whatever their
+multilingual training gave them — spot-check by listening and, ideally, by
+ASR round-trip WER; (2) a fraction of generations are degenerate (runaway
+"babbling" far longer than the real utterance, truncated output, or
+near-silence — Chatterbox logs `forcing EOS token, long_tail=True` when its
+alignment analyzer cuts a generation). `scripts/qc_generated.py` measures
+these per clip; report the flag rate and either filter or keep-and-report.
+
+The generators also emit different sample rates (real 16 kHz, F5-TTS and
+Chatterbox 24 kHz, VoxCPM2 48 kHz). A detector can shortcut on sample rate
+alone, so resample every clip to a single rate (e.g. 16 kHz) before
+training/evaluation, and state that in the data card.
 
 Each real utterance selected in Stage 4 is used as the source text (and, for
 voice-cloning backends, the reference audio) for one synthetic counterpart
